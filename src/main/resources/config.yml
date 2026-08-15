@@ -1,0 +1,27 @@
+# GeyserRecipeFixPatcher
+#
+# This plugin never bundles, vendors, or redistributes any code from
+# Geyser Recipe Fix. On every boot it:
+#   1. Asks Modrinth (the author's own distribution channel) for the latest
+#      official build of Geyser Recipe Fix and downloads it fresh.
+#   2. Applies a small, local set of bytecode patches (see PATCHES.md) to
+#      add Folia support, entirely by inserting calls to classes that ship
+#      with THIS plugin - it never reproduces the original author's code.
+#   3. Writes the result to plugins/GeyserRecipeFix.jar and asks for a
+#      restart to load it, the same way you'd install any plugin update.
+
+# Modrinth project slug to pull releases from.
+modrinth-project: "geyser-recipe-fix"
+
+# Only apply/update to versions explicitly listed here, once you've verified
+# they work on your server. Leave empty to always take whatever Modrinth
+# reports as latest (not recommended for production).
+allowed-versions: []
+
+# Check Modrinth for a newer release on every server start.
+check-on-startup: true
+
+# If true, automatically re-patch and stage a newer version when found.
+# You'll still need to restart the server for it to take effect - jars are
+# never hot-swapped while the plugin is running.
+auto-update: true

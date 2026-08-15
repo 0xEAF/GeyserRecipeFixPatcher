@@ -1,0 +1,102 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '8.3.5'
+    // Only used to get an accurate, Mojang-mapped compile classpath (NMS
+    // classes like ServerPlayer/AnvilMenu) for the `injected` source set -
+    // modern Paper (1.20.5+) already ships those Mojang-mapped names at
+    // runtime, so no reobfuscation step is needed; this is dev-time only.
+    id 'io.papermc.paperweight.userdev' version '2.0.0-beta.19'
+}
+
+group = 'net.sideways_sky.geyserrecipefixpatcher'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url = "https://repo.papermc.io/repository/maven-public/" }
+}
+
+// A separate, tiny source set for the classes we inject into the patched jar
+// at runtime. These are 100% original code written for this project - they
+// never contain any code from Geyser Recipe Fix. They're compiled normally
+// like any other Java source, then copied into our own plugin's resources
+// (see the `bundleInjectedClasses` task below) so we can read their raw
+// .class bytes at runtime and splice them into the freshly downloaded,
+// official GeyserRecipeFix.jar.
+sourceSets {
+    // Compile-only stand-ins for the two GeyserRecipeFix classes our
+    // injected code references by name. They declare only the field
+    // names/types needed for javac to resolve those references (not any of
+    // the original plugin's logic) and are NEVER copied into our plugin's
+    // resources or into the patched jar - see bundleInjectedClasses below,
+    // which only pulls from the `injected` source set's own output.
+    stubs {
+        java {
+            srcDirs = ['src/stubs/java']
+        }
+    }
+    injected {
+        java {
+            srcDirs = ['src/injected/java']
+        }
+        compileClasspath += sourceSets.stubs.output
+    }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
+    implementation 'org.ow2.asm:asm:9.7.1'
+    implementation 'org.ow2.asm:asm-tree:9.7.1'
+    implementation 'org.ow2.asm:asm-commons:9.7.1'
+
+    // The injected classes need raw, Mojang-mapped NMS access (ServerPlayer,
+    // AnvilMenu, CraftPlayer, ...) to open the vanilla anvil menu, exactly
+    // like the upstream project itself does - the dev bundle gives us that
+    // compile classpath. Nothing here is remapped/reobfuscated: modern
+    // Paper already exposes these exact names at runtime.
+    injectedCompileOnly paperweight.paperDevBundle("1.21.8-R0.1-SNAPSHOT")
+    stubsCompileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
+}
+
+def targetJavaVersion = 21
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+    toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(targetJavaVersion)
+}
+
+// Compile the "injected" source set, then copy the resulting .class files
+// into src/main/resources/injected/ so they're bundled inside our own plugin
+// jar as plain resources (not on our own runtime classpath - we don't want
+// them loaded into our plugin, only spliced into the target jar we build).
+tasks.register('bundleInjectedClasses', Copy) {
+    dependsOn tasks.named('compileInjectedJava')
+    from sourceSets.injected.output.classesDirs
+    into layout.buildDirectory.dir('resources/main/injected')
+    include '**/*.class'
+}
+
+tasks.named('processResources') {
+    dependsOn tasks.named('bundleInjectedClasses')
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier.set('')
+    relocate 'org.objectweb.asm', 'net.sideways_sky.geyserrecipefixpatcher.libs.asm'
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('shadowJar')
+}
+
+processResources {
+    filteringCharset 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(version: version)
+    }
+}

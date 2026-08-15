@@ -1,0 +1,15 @@
+name: GeyserRecipeFixPatcher
+version: '${version}'
+main: net.sideways_sky.geyserrecipefixpatcher.GeyserRecipeFixPatcherPlugin
+api-version: '1.20'
+folia-supported: true
+author: you
+description: >
+  Downloads the latest official GeyserRecipeFix build from Modrinth and
+  applies a small set of local bytecode patches (Folia support) before
+  installing it as plugins/GeyserRecipeFix.jar. Does not bundle, vendor,
+  or redistribute any of the original plugin's code.
+commands:
+  grfpatcher:
+    description: Manage the GeyserRecipeFix patcher
+    usage: /grfpatcher <check|update|status>
