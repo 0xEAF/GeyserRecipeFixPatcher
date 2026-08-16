@@ -2,31 +2,19 @@ plugins {
     id 'java'
     id 'com.gradleup.shadow' version '8.3.5'
     // Gives us an accurate, Mojang-mapped compile classpath (NMS classes
-    // like ServerPlayer/AnvilMenu) for the two Folia helper classes below.
-    // Modern Paper (1.20.5+) already ships those Mojang-mapped names at
-    // runtime, so no reobfuscation step is needed - this is dev-time only.
+    // like ServerPlayer/AnvilMenu/AbstractContainerMenu) for the helper and
+    // stub classes below. Modern Paper (1.20.5+) already ships those
+    // Mojang-mapped names at runtime, so no reobfuscation step is needed -
+    // this is dev-time only.
     id 'io.papermc.paperweight.userdev' version '2.0.0-beta.19'
 }
 
 group = 'net.sideways_sky.geyserrecipefixpatcher'
-version = '1.1.0'
+version = '1.0.0'
 
 repositories {
     mavenCentral()
     maven { url = "https://repo.papermc.io/repository/maven-public/" }
-}
-
-// Compile-only stand-ins for the two GeyserRecipeFix classes our Folia
-// helper classes reference by name (see PATCHES.md). They declare only the
-// field names/types needed for javac to resolve those references - not any
-// of the original plugin's logic - and are never packaged: `stubs.output`
-// is only ever added as `compileOnly`, so it never ends up in the built jar.
-sourceSets {
-    stubs {
-        java {
-            srcDirs = ['src/stubs/java']
-        }
-    }
 }
 
 dependencies {
@@ -34,13 +22,10 @@ dependencies {
     // it replaces a plain paper-api dependency here rather than sitting
     // alongside one (avoids two copies of the Bukkit API on the classpath).
     compileOnly paperweight.paperDevBundle("1.21.8-R0.1-SNAPSHOT")
-    compileOnly sourceSets.stubs.output
 
     implementation 'org.ow2.asm:asm:9.7.1'
     implementation 'org.ow2.asm:asm-tree:9.7.1'
     implementation 'org.ow2.asm:asm-commons:9.7.1'
-
-    stubsCompileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
 }
 
 def targetJavaVersion = 21
@@ -55,16 +40,22 @@ tasks.withType(JavaCompile).configureEach {
     options.release.set(targetJavaVersion)
 }
 
-// The two Folia helper classes (net/sideways_sky/geyserrecipefix/**) are
-// ordinary members of the `main` source set - that's the only way to get
-// paperweight's Mojang-mapped NMS classpath applied to them reliably. After
-// compileJava runs, copy just those two .class files into
+// FoliaRuntimeSupport/FoliaAnvilBridge/AnvilRenameFix (the classes we splice
+// into the downloaded jar) AND their compile-only stand-ins for the real
+// GeyserRecipeFix/PaperEvents/AnvilSim classes (see PATCHES.md) all live as
+// ordinary members of the `main` source set - that's the only way found to
+// get paperweight's Mojang-mapped NMS classpath applied to them reliably; a
+// separate custom source set doesn't reliably pick it up even when the dev
+// bundle dependency is added directly to its own compileOnly configuration.
+// After compileJava runs, copy just the three real helper classes into
 // resources/main/injected/, so at runtime we can read their raw bytes and
 // splice them into the freshly downloaded, official GeyserRecipeFix.jar
-// (see JarPatcher). shadowJar then excludes their *original* path (see
-// below) so they don't also ship as regular classes on our own plugin's
-// runtime classpath - only the `injected/` copies do, and those are never
-// loaded by our own plugin, only read as bytes.
+// (see JarPatcher). shadowJar then excludes the whole
+// net/sideways_sky/geyserrecipefix/** path (below) - covering the helper
+// classes' own path AND the stand-ins - so none of it ships as directly
+// loadable classes on our own plugin's runtime classpath; only the
+// `injected/` copies do, and those are never loaded by our own plugin, only
+// read as bytes.
 tasks.register('bundleInjectedClasses', Copy) {
     dependsOn tasks.named('compileJava')
     from tasks.named('compileJava').map { it.destinationDirectory }
