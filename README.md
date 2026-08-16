@@ -4,6 +4,11 @@ A small Paper/Folia plugin that installs [Geyser Recipe Fix](https://modrinth.co
 with local Folia-support patches applied, without redistributing any of the
 original plugin's code.
 
+## WARNING: Made with AI (cuz idk how to use Java)
+## PLEASE SUPPORT [THE ORIGINAL DEVELOPER](https://github.com/AnsonEyre)
+
+I am a random dev, and you should really not trust random stuff you find on the Internet. Take a look at the source code which is only a few hundred lines long. (click on the GitHub "view source" link on the side). And if you prefer, compile the project yourself with `mvn clean package` (requires Java JDK 21+ and Maven installed).
+
 ## What it actually does, on your own server, every boot
 
 1. Asks **Modrinth** (the author's own official distribution channel) for

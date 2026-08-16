@@ -41,6 +41,20 @@ Adds one line, `folia-supported: true`, if not already present.
 Two tiny classes reproducing only two field *declarations* (name + type,
 not any logic) so the helper classes above compile against the exact
 name/descriptor the real classes use, and therefore link correctly against
-the genuine downloaded classes at runtime. `bundleInjectedClasses` in
-`build.gradle` only copies the `injected` source set's own output, so these
-stubs never end up in the plugin jar or the patched output.
+the genuine downloaded classes at runtime. `stubs.output` is only ever
+added as a `compileOnly` dependency of `main` in `build.gradle`, so it
+never ends up in the built plugin jar.
+
+## Build layout note
+
+`FoliaRuntimeSupport` and `FoliaAnvilBridge` are ordinary classes in the
+`main` source set (that's the only way to reliably get paperweight's
+Mojang-mapped NMS classpath applied to them - a separate custom source set
+doesn't pick it up). After compiling, `build.gradle`'s `bundleInjectedClasses`
+task copies just those two `.class` files into `resources/main/injected/`,
+which is what `JarPatcher` actually reads and splices into the target jar.
+`shadowJar` then excludes their original path
+(`net/sideways_sky/geyserrecipefix/**`) from the shipped plugin jar, so they
+never exist as directly loadable classes on GeyserRecipeFixPatcher's own
+runtime classpath - only the `injected/` byte copies do, and those are only
+ever read, never loaded, by our own plugin.

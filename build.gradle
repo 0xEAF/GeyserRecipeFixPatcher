@@ -1,10 +1,10 @@
 plugins {
     id 'java'
     id 'com.gradleup.shadow' version '8.3.5'
-    // Only used to get an accurate, Mojang-mapped compile classpath (NMS
-    // classes like ServerPlayer/AnvilMenu) for the `injected` source set -
-    // modern Paper (1.20.5+) already ships those Mojang-mapped names at
-    // runtime, so no reobfuscation step is needed; this is dev-time only.
+    // Gives us an accurate, Mojang-mapped compile classpath (NMS classes
+    // like ServerPlayer/AnvilMenu) for the two Folia helper classes below.
+    // Modern Paper (1.20.5+) already ships those Mojang-mapped names at
+    // runtime, so no reobfuscation step is needed - this is dev-time only.
     id 'io.papermc.paperweight.userdev' version '2.0.0-beta.19'
 }
 
@@ -16,45 +16,30 @@ repositories {
     maven { url = "https://repo.papermc.io/repository/maven-public/" }
 }
 
-// A separate, tiny source set for the classes we inject into the patched jar
-// at runtime. These are 100% original code written for this project - they
-// never contain any code from Geyser Recipe Fix. They're compiled normally
-// like any other Java source, then copied into our own plugin's resources
-// (see the `bundleInjectedClasses` task below) so we can read their raw
-// .class bytes at runtime and splice them into the freshly downloaded,
-// official GeyserRecipeFix.jar.
+// Compile-only stand-ins for the two GeyserRecipeFix classes our Folia
+// helper classes reference by name (see PATCHES.md). They declare only the
+// field names/types needed for javac to resolve those references - not any
+// of the original plugin's logic - and are never packaged: `stubs.output`
+// is only ever added as `compileOnly`, so it never ends up in the built jar.
 sourceSets {
-    // Compile-only stand-ins for the two GeyserRecipeFix classes our
-    // injected code references by name. They declare only the field
-    // names/types needed for javac to resolve those references (not any of
-    // the original plugin's logic) and are NEVER copied into our plugin's
-    // resources or into the patched jar - see bundleInjectedClasses below,
-    // which only pulls from the `injected` source set's own output.
     stubs {
         java {
             srcDirs = ['src/stubs/java']
         }
     }
-    injected {
-        java {
-            srcDirs = ['src/injected/java']
-        }
-        compileClasspath += sourceSets.stubs.output
-    }
 }
 
 dependencies {
-    compileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
+    // Note: paperDevBundle already includes the full mapped Paper API, so
+    // it replaces a plain paper-api dependency here rather than sitting
+    // alongside one (avoids two copies of the Bukkit API on the classpath).
+    compileOnly paperweight.paperDevBundle("1.21.8-R0.1-SNAPSHOT")
+    compileOnly sourceSets.stubs.output
+
     implementation 'org.ow2.asm:asm:9.7.1'
     implementation 'org.ow2.asm:asm-tree:9.7.1'
     implementation 'org.ow2.asm:asm-commons:9.7.1'
 
-    // The injected classes need raw, Mojang-mapped NMS access (ServerPlayer,
-    // AnvilMenu, CraftPlayer, ...) to open the vanilla anvil menu, exactly
-    // like the upstream project itself does - the dev bundle gives us that
-    // compile classpath. Nothing here is remapped/reobfuscated: modern
-    // Paper already exposes these exact names at runtime.
-    injectedCompileOnly paperweight.paperDevBundle("1.21.8-R0.1-SNAPSHOT")
     stubsCompileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
 }
 
@@ -70,15 +55,22 @@ tasks.withType(JavaCompile).configureEach {
     options.release.set(targetJavaVersion)
 }
 
-// Compile the "injected" source set, then copy the resulting .class files
-// into src/main/resources/injected/ so they're bundled inside our own plugin
-// jar as plain resources (not on our own runtime classpath - we don't want
-// them loaded into our plugin, only spliced into the target jar we build).
+// The two Folia helper classes (net/sideways_sky/geyserrecipefix/**) are
+// ordinary members of the `main` source set - that's the only way to get
+// paperweight's Mojang-mapped NMS classpath applied to them reliably. After
+// compileJava runs, copy just those two .class files into
+// resources/main/injected/, so at runtime we can read their raw bytes and
+// splice them into the freshly downloaded, official GeyserRecipeFix.jar
+// (see JarPatcher). shadowJar then excludes their *original* path (see
+// below) so they don't also ship as regular classes on our own plugin's
+// runtime classpath - only the `injected/` copies do, and those are never
+// loaded by our own plugin, only read as bytes.
 tasks.register('bundleInjectedClasses', Copy) {
-    dependsOn tasks.named('compileInjectedJava')
-    from sourceSets.injected.output.classesDirs
+    dependsOn tasks.named('compileJava')
+    from tasks.named('compileJava').map { it.destinationDirectory }
     into layout.buildDirectory.dir('resources/main/injected')
-    include '**/*.class'
+    include 'net/sideways_sky/geyserrecipefix/FoliaRuntimeSupport.class'
+    include 'net/sideways_sky/geyserrecipefix/events/FoliaAnvilBridge.class'
 }
 
 tasks.named('processResources') {
@@ -87,7 +79,15 @@ tasks.named('processResources') {
 
 tasks.named('shadowJar') {
     archiveClassifier.set('')
-    relocate 'org.objectweb.asm', 'net.sideways_sky.geyserrecipefixpatcher.libs.asm'
+    // Deliberately NOT relocating org.objectweb.asm here: Shadow 8.3.5's
+    // Groovy-based ASM remapper has a bug (MissingMethodException in
+    // RelocatorRemapper.mapValue) when it processes invokedynamic
+    // instructions - which any class using a lambda emits, including our
+    // own plugin classes - while doing a package relocation pass. Skipping
+    // relocation avoids that remap pass entirely. This is safe here: Paper
+    // gives each plugin its own isolated classloader, so bundling ASM
+    // un-relocated in our own jar won't collide with another plugin's copy.
+    exclude 'net/sideways_sky/geyserrecipefix/**'
 }
 
 tasks.named('build') {

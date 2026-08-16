@@ -20,8 +20,12 @@ public final class GeyserRecipeFixPatcherPlugin extends JavaPlugin {
 
         if (getConfig().getBoolean("check-on-startup", true)) {
             // Network I/O - keep it off the main thread so it never delays
-            // server startup or trips the watchdog.
-            getServer().getScheduler().runTaskAsynchronously(this, () ->
+            // server startup or trips the watchdog. The legacy
+            // BukkitScheduler.runTaskAsynchronously(...) throws
+            // UnsupportedOperationException on Folia by design, so we use
+            // Paper's unified AsyncScheduler instead - it works the same
+            // way on plain Paper too.
+            getServer().getAsyncScheduler().runNow(this, task ->
                     runner.run(msg -> getLogger().info(msg)));
         } else {
             getLogger().info("check-on-startup is disabled in config.yml. Use /grfpatcher update to run manually.");
@@ -42,7 +46,7 @@ public final class GeyserRecipeFixPatcherPlugin extends JavaPlugin {
             }
             case "check", "update" -> {
                 sender.sendMessage("Checking Modrinth for the latest GeyserRecipeFix build...");
-                getServer().getScheduler().runTaskAsynchronously(this, () ->
+                getServer().getAsyncScheduler().runNow(this, task ->
                         runner.run(sender::sendMessage));
             }
             default -> sender.sendMessage("Usage: /grfpatcher <status|update>");

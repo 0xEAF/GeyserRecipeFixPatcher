@@ -28,6 +28,14 @@ public final class PaperEventsTransformer extends ClassVisitor {
 
     private static final String HASHSET = "java/util/HashSet";
     private static final String CONCURRENT_HASHMAP = "java/util/concurrent/ConcurrentHashMap";
+    // ConcurrentHashMap.newKeySet()'s actual JVM return type is the concrete
+    // nested class ConcurrentHashMap.KeySetView (which implements Set) - the
+    // generic erasure here keeps the declared return type, it does NOT erase
+    // to java.util.Set. Method resolution is by exact name+descriptor match,
+    // so using "()Ljava/util/Set;" here is a NoSuchMethodError at runtime.
+    // The KeySetView value itself is still assignment-compatible with the
+    // Set-typed field it's stored into (PUTSTATIC only needs a subtype).
+    private static final String NEW_KEY_SET_DESC = "()Ljava/util/concurrent/ConcurrentHashMap$KeySetView;";
     private static final String BRIDGE_OWNER = "net/sideways_sky/geyserrecipefix/events/FoliaAnvilBridge";
     private static final String HUMAN_ENTITY_DESC = "(Lorg/bukkit/entity/HumanEntity;)V";
 
@@ -121,7 +129,7 @@ public final class PaperEventsTransformer extends ClassVisitor {
         public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
             if (sawDup && opcode == Opcodes.INVOKESPECIAL && HASHSET.equals(owner)
                     && "<init>".equals(name) && "()V".equals(descriptor)) {
-                super.visitMethodInsn(Opcodes.INVOKESTATIC, CONCURRENT_HASHMAP, "newKeySet", "()Ljava/util/Set;", false);
+                super.visitMethodInsn(Opcodes.INVOKESTATIC, CONCURRENT_HASHMAP, "newKeySet", NEW_KEY_SET_DESC, false);
                 applied = true;
                 sawDup = false;
                 return;
