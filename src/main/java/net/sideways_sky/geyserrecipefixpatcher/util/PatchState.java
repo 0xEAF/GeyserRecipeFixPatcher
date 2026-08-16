@@ -30,6 +30,16 @@ public final class PatchState {
         save();
     }
 
+    /** The GeyserRecipeFixPatcher version that produced the currently-installed patched jar. */
+    public String installedPatcherVersion() {
+        return props.getProperty("installed-patcher-version");
+    }
+
+    public void setInstalledPatcherVersion(String version) throws IOException {
+        props.setProperty("installed-patcher-version", version);
+        save();
+    }
+
     public String stagedVersion() {
         return props.getProperty("staged-version");
     }

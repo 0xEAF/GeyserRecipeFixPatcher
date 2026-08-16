@@ -26,6 +26,16 @@ ships with this project (see `src/injected/java/`).
 
 Adds one line, `folia-supported: true`, if not already present.
 
+## `AnvilSim.class`
+
+| # | Where | Change |
+|---|-------|--------|
+| 1 | `setCost(int, Player)` | The original method is renamed to `setCost$original` (identical body - none of it is modified or reproduced elsewhere), and a new `setCost` is installed that calls the renamed original first, then `AnvilRenameFix.afterSetCost(this, player)` (shipped with this project). |
+
+This fixes upstream issue [#19](https://github.com/AnsonEyre/Geyser-Recipe-Fix/issues/19) - "Enchanting items reset the item name." After every cost recompute, if the anvil's result item is missing a custom name that the input item already has, and the player hasn't typed anything into the rename field, `AnvilRenameFix` copies the input's custom name back onto the result and re-sends that one corrected slot, using the same `ContainerSynchronizer#sendSlotChange` technique `AnvilSim` already uses for its cost indicator.
+
+This one reads a Minecraft-internal field (`AnvilMenu#itemName`) via reflection to check whether the player is actively typing a rename, since its exact name couldn't be verified against a live decompile in the environment this patcher was authored in. If that guess is wrong for a given Minecraft version, the fix fails safe: it logs one warning and no-ops rather than risk breaking the anvil GUI.
+
 ## New classes added to the jar (not upstream's - see `src/injected/java/`)
 
 - `net/sideways_sky/geyserrecipefix/FoliaRuntimeSupport.class` - Folia
@@ -35,6 +45,9 @@ Adds one line, `folia-supported: true`, if not already present.
   the real anvil" flow: prefers the per-entity scheduler (via reflection,
   so it still runs fine on plain Paper/Spigot where that API doesn't
   exist) and falls back to the plain Bukkit scheduler otherwise.
+- `net/sideways_sky/geyserrecipefix/inventories/AnvilRenameFix.class` -
+  restores a dropped custom name onto the anvil result (issue #19, see
+  above).
 
 ## Compile-only stubs (`src/stubs/java/`, never packaged)
 

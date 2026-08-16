@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'net.sideways_sky.geyserrecipefixpatcher'
-version = '1.0.0b'
+version = '1.1.0'
 
 repositories {
     mavenCentral()
@@ -71,6 +71,7 @@ tasks.register('bundleInjectedClasses', Copy) {
     into layout.buildDirectory.dir('resources/main/injected')
     include 'net/sideways_sky/geyserrecipefix/FoliaRuntimeSupport.class'
     include 'net/sideways_sky/geyserrecipefix/events/FoliaAnvilBridge.class'
+    include 'net/sideways_sky/geyserrecipefix/inventories/AnvilRenameFix.class'
 }
 
 tasks.named('processResources') {

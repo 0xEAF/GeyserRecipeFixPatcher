@@ -21,6 +21,7 @@ public final class JarPatcher {
 
     private static final String MAIN_CLASS_ENTRY = "net/sideways_sky/geyserrecipefix/Geyser_Recipe_Fix.class";
     private static final String PAPER_EVENTS_ENTRY = "net/sideways_sky/geyserrecipefix/events/PaperEvents.class";
+    private static final String ANVIL_SIM_ENTRY = "net/sideways_sky/geyserrecipefix/inventories/AnvilSim.class";
     private static final String PLUGIN_YML_ENTRY = "plugin.yml";
 
     /** Thrown when the downloaded jar's structure doesn't match what our patches target. */
@@ -41,9 +42,11 @@ public final class JarPatcher {
 
         boolean mainClassSeen = false;
         boolean paperEventsSeen = false;
+        boolean anvilSimSeen = false;
         boolean pluginYmlSeen = false;
         MainClassTransformer mainTransform = null;
         PaperEventsTransformer paperTransform = null;
+        AnvilSimTransformer anvilSimTransform = null;
 
         Path tmp = destinationJar.resolveSibling(destinationJar.getFileName() + ".tmp");
         Files.deleteIfExists(tmp);
@@ -78,6 +81,12 @@ public final class JarPatcher {
                     pluginYmlSeen = true;
                     data = patchPluginYml(jar.getInputStream(entry).readAllBytes());
 
+                } else if (ANVIL_SIM_ENTRY.equals(entry.getName())) {
+                    anvilSimSeen = true;
+                    AnvilSimTransformer transformer = new AnvilSimTransformer();
+                    data = transformer.transform(jar.getInputStream(entry).readAllBytes());
+                    anvilSimTransform = transformer;
+
                 } else {
                     data = jar.getInputStream(entry).readAllBytes();
                 }
@@ -108,6 +117,7 @@ public final class JarPatcher {
         List<String> problems = new ArrayList<>();
         if (!mainClassSeen) problems.add("Geyser_Recipe_Fix.class not found in the downloaded jar");
         if (!paperEventsSeen) problems.add("PaperEvents.class not found in the downloaded jar");
+        if (!anvilSimSeen) problems.add("AnvilSim.class not found in the downloaded jar");
         if (!pluginYmlSeen) problems.add("plugin.yml not found in the downloaded jar");
         if (mainTransform != null) {
             if (!mainTransform.appliedHashMapSwap()) problems.add("openMenus HashMap allocation not found (onEnable/<clinit> may have changed upstream)");
@@ -117,6 +127,9 @@ public final class JarPatcher {
             if (!paperTransform.appliedFieldWiden()) problems.add("forwardSkips field not found");
             if (!paperTransform.appliedHashSetSwap()) problems.add("forwardSkips HashSet allocation not found");
             if (!paperTransform.appliedMethodReplace()) problems.add("openForward(HumanEntity) method not found");
+        }
+        if (anvilSimTransform != null) {
+            if (!anvilSimTransform.applied()) problems.add("setCost(int, Player) method not found in AnvilSim");
         }
 
         if (!problems.isEmpty()) {
@@ -144,7 +157,8 @@ public final class JarPatcher {
         // scanned) so a change here is a deliberate, reviewable edit.
         return List.of(
                 "net/sideways_sky/geyserrecipefix/FoliaRuntimeSupport.class",
-                "net/sideways_sky/geyserrecipefix/events/FoliaAnvilBridge.class"
+                "net/sideways_sky/geyserrecipefix/events/FoliaAnvilBridge.class",
+                "net/sideways_sky/geyserrecipefix/inventories/AnvilRenameFix.class"
         );
     }
 }
